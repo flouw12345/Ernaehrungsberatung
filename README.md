@@ -4,9 +4,10 @@ Persönlicher Makro-Coach mit Ernährungstagebuch als Offline-Web-App (PWA), opt
 
 ## Funktionen
 
-- **Fragebogen:** Körperdaten, Schritte, Krafttraining, Abnehmtempo, Einkaufsregion (Deutschland/China), Ausschlüsse, Mahlzeiten pro Tag, Meal-Prep
+- **Fragebogen:** Körperdaten, Schritte, Krafttraining, Abnehmtempo, Einkaufsregion (Deutschland/China), Ausschlüsse, 2 oder 3 Hauptmahlzeiten, täglicher Proteinshake (z. B. 30 g Whey), Snacks, Meal-Prep
 - **Bedarf:** Grundumsatz als Mittelwert aus Mifflin-St Jeor, Harris-Benedict und (mit Körperfett) Katch-McArdle, PAL aus Schritten und Training, Kaloriendefizit mit Schutzgrenzen, Protein 2 g/kg, Fett, Kohlenhydrate, Ballaststoffe, Wasser
 - **Ernährungsplan:** 7-Tage-Plan, Mengen automatisch auf deine Makros skaliert, mit Zubereitungshinweisen
+- **Meal-Prep & Kochplan:** Mo–Do abends kochen für Abendessen + Mittag am Folgetag, Fr abends nur Abendessen, am Wochenende einmal pro Tag (nur Mittag oder Mittag + Abend), sonntags inkl. Montags-Mittagessen; pro Kochtag Gesamtmengen und Portionen
 - **Einkaufsliste:** Wochenbedarf auf Packungsgrößen gerundet, abhakbar, teilbar
 - **Heute (Tagebuch):** Plan-Mahlzeiten mit einem Tipp als gegessen eintragen, ca. 120 Lebensmittel durchsuchen, eigene Lebensmittel anlegen, Wasser-Tracker, tägliche Auswertung mit Tipps
 - **Gewicht & Check-in:** Wochendurchschnitte, Verlaufsdiagramm, automatische Kalorien-Empfehlung bei zu schnellem/zu langsamem Fortschritt

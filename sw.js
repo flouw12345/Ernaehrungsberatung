@@ -1,6 +1,6 @@
 // Service Worker: speichert die App beim ersten Aufruf, danach läuft sie offline.
 // Bei jeder Änderung an den Dateien CACHE-Version erhöhen.
-const CACHE = "makrocoach-v2.2.0";
+const CACHE = "makrocoach-v2.3.0";
 const FILES = [
   "./",
   "index.html",

@@ -99,6 +99,11 @@ tr.total td{font-weight:700;border-bottom:0}
 .days button[aria-pressed=true]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .meal{display:flex;flex-direction:column;gap:8px;padding-block:14px;border-top:1px solid var(--line)}
 .meal:first-of-type{border-top:0;padding-top:4px}
+.cook{background:var(--accent-soft);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.cook ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.cook li{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.cook li span:last-child{font-family:var(--mono);font-size:13px;white-space:nowrap}
+.slot .pre{color:var(--muted)}
 .meal-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
 .slot{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
 .meal ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}

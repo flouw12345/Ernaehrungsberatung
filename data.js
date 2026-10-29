@@ -35,6 +35,8 @@ const FOODS={
  oil:{n:"Olivenöl",cn:"橄榄油",k:884,p:0,c:0,f:100,cat:"misc",pack:{g:500,l:"0,5 l"},long:true},
  pb:{n:"Erdnussbutter",cn:"花生酱（无糖）",k:600,p:25,c:14,f:50,fi:6,cat:"misc",pack:{g:350,l:"350 g"},long:true},
  nuts:{n:"Mandeln",cn:"巴旦木",k:600,p:21,c:6,f:52,fi:12,cat:"misc",pack:{g:200,l:"200 g"}},
+ salad:{n:"Blattsalat",cn:"生菜",k:15,p:1.2,c:1.5,f:0.2,fi:1.4,cat:"veg",og:true,pack:{g:250,l:"250 g"}},
+ cucumber:{n:"Gurke",cn:"黄瓜",k:13,p:0.6,c:2,f:0.1,fi:0.5,cat:"veg",og:true,unit:{g:400,l:"Stück"},pack:{g:400,l:"Stück"}},
  avocado:{n:"Avocado",cn:"牛油果",k:160,p:2,c:2,f:15,fi:6.7,cat:"veg",og:true,unit:{g:150,l:"Stück"},pack:{g:150,l:"Stück"}}
 };
 const CATS={prot:"Fleisch, Fisch, Eier & Tofu",dairy:"Milchprodukte & Alternativen",carb:"Getreide & Hülsenfrüchte",veg:"Obst & Gemüse",misc:"Vorrat & Sonstiges"};
@@ -63,6 +65,11 @@ const MEALS=[
   {c:["chicken","tofu","shrimp"],r:"P",min:60,max:280},{c:["lentil"],r:"C",min:30,max:150},{c:["vegmix"],r:"x",g:200},{c:["passata"],r:"x",g:100},{c:["oil"],r:"F",min:0,max:25}]},
  {id:"tunabowl",slot:"M",n:"Thunfisch-Reis-Bowl mit Avocado",prep:"Reis vorkochen, kalt oder warm essen.",items:[
   {c:["tuna","shrimp","chicken","tofu"],r:"P",min:80,max:300},{c:["rice"],r:"C",min:30,max:190},{c:["pepper"],r:"x",g:120},{c:["avocado","oil"],r:"F",min:0,max:150}]},
+ /* K = kalte Abendessen für Wochenendtage, an denen nur mittags gekocht wird */
+ {id:"abendbrot",slot:"K",n:"Abendbrot mit Hüttenkäse, Ei und Gurke",prep:"Ohne Kochen: Ei vom Vortag oder schnell gekocht.",items:[
+  {c:["cottage","quark","soyyog"],r:"P",min:100,max:350},{c:["egg"],r:"x",g:60},{c:["bread"],r:"C",min:50,max:200},{c:["cucumber","pepper"],r:"x",g:150},{c:["nuts","avocado"],r:"F",min:0,max:40}]},
+ {id:"tunasalad",slot:"K",n:"Salat mit Thunfisch und Vollkornbrot",prep:"Salat, Gurke und Paprika schneiden, mit Öl und Essig anmachen.",items:[
+  {c:["tuna","tofu","cottage"],r:"P",min:60,max:300},{c:["salad"],r:"x",g:120},{c:["cucumber","pepper"],r:"x",g:150},{c:["bread"],r:"C",min:0,max:150},{c:["oil","avocado"],r:"F",min:0,max:25}]},
  {id:"shake",slot:"S",n:"Proteinshake mit Banane",prep:"Nach dem Training oder als Snack.",items:[
   {c:["whey","soyprot"],r:"P",min:20,max:50},{c:["milk","soymilk"],r:"x",g:250},{c:["banana"],r:"x",g:120}]},
  {id:"quarkber",slot:"S",n:"Quark mit Beeren und Mandeln",prep:"",items:[

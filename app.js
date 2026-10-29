@@ -1,5 +1,5 @@
 "use strict";
-const APP_VERSION="2.2.0";
+const APP_VERSION="2.3.0";
 
 /* ---------- Zustand & Speicherung (nur auf diesem Gerät) ---------- */
 const LS="makrocoach.v1";
@@ -9,13 +9,15 @@ function exampleState(){
   const today=iso(new Date());const log=[];let w=88.6;
   for(let i=24;i>=0;i--){ if(i%7===2||i%7===5) continue; const t=(24-i);w=88.6-t*0.06+Math.sin(t*1.7)*0.35;log.push({d:addDays(today,-i),kg:Math.round(w*10)/10});}
   return {v:2,example:true,updatedAt:0,adjust:0,adjustLog:[],shop:{},weekFlags:{},days:{},custom:[],
-    profile:{sex:"m",age:30,height:182,weight:88,bf:20,steps:"s2",days:4,dur:60,goal:"moderat",region:"de",excl:[],meals:4,prep:true},log};
+    profile:{sex:"m",age:30,height:182,weight:88,bf:20,steps:"s2",days:4,dur:60,goal:"moderat",region:"de",excl:[],main:3,snacks:0,shake:30,shakeMilk:false,prep:true,weekend:"LD"},log};
 }
 // Ergänzt Felder, die ältere Stände (z. B. Backups aus dem Makro-Coach-Artefakt) noch nicht haben
 function normalize(s){
   s.days=s.days&&typeof s.days==="object"?s.days:{};
   s.custom=Array.isArray(s.custom)?s.custom:[];
   s.logDel=s.logDel||{};
+  // Ältere Profile kannten nur "meals" (3–5): in Hauptmahlzeiten + Snacks umrechnen
+  const p=s.profile;if(p&&p.main==null){const m=Number(p.meals)||4;Object.assign(p,{main:3,snacks:Math.min(2,Math.max(0,m-3)),shake:0,shakeMilk:false,weekend:"LD"});delete p.meals}
   s.shop=s.shop||{};s.shopOpts=Object.assign({open:true,qty:true,cats:false},s.shopOpts);s.weekFlags=s.weekFlags||{};s.adjustLog=s.adjustLog||[];s.adjust=s.adjust||0;
   return s;
 }
@@ -89,27 +91,66 @@ function solve(items,t,iters){
 }
 function roundG(fid,g){if(fid==="oil")return Math.round(g/2)*2;if(["pb","nuts","whey","soyprot"].includes(fid))return Math.round(g/5)*5;return Math.round(g/10)*10}
 let weekCache=null;
+function mealCfg(p){return {main:p.main===2?2:3,snacks:Math.min(2,Math.max(0,Number(p.snacks)||0)),shake:Number(p.shake)||0,shakeMilk:!!p.shakeMilk,weekend:p.weekend==="L"?"L":"LD"}}
+function shakeMeal(p,cfg){
+  if(!cfg.shake)return null;
+  const prot=["whey","soyprot"].find(x=>allowed(x,p));if(!prot)return null;
+  const items=[{c:[prot],r:"x",g:cfg.shake,fid:prot}];
+  const milk=cfg.shakeMilk&&["milk","soymilk"].find(x=>allowed(x,p));if(milk)items.push({c:[milk],r:"x",g:250,fid:milk});
+  return {slot:"S",m:{id:"dailyshake",n:`Proteinshake mit ${cfg.shake} g ${prot==="whey"?"Whey":"Sojaprotein"}`,prep:milk?"Mit 250 ml Milch shaken.":"Mit 300 ml Wasser shaken."},items};
+}
+// Woher kommt Mittag- und Abendessen? k = Index des Gerichts, from = Tag, an dem gekocht wird (Mo=0 … So=6)
+function cookSchedule(p,cfg,n){
+  const lunch=[],dinner=[];
+  if(p.prep){
+    // Gekocht wird Sa, So, Mo … Fr, jeder Kochtag bekommt ein eigenes Gericht
+    const dish={};[5,6,0,1,2,3,4].forEach((d,i)=>{dish[d]=i});
+    // Freitag nicht dasselbe Gericht wie Samstag, wenn genug Gerichte zur Auswahl stehen
+    if(n>2&&dish[4]%n===dish[5]%n)dish[4]++;
+    for(let d=0;d<7;d++){
+      // Mo–Fr: Mittagessen wurde am Vorabend vorgekocht (Montag: am Sonntag)
+      lunch[d]=d===0?{k:dish[6],from:6}:d<=4?{k:dish[d-1],from:d-1}:{k:dish[d],from:d};
+      dinner[d]=d<=4||cfg.weekend==="LD"?{k:dish[d],from:d}:{cold:true};
+    }
+  } else for(let d=0;d<7;d++){lunch[d]={k:d,from:d};dinner[d]={k:d+3,from:d,fresh:true}}
+  return {lunch,dinner};
+}
 function buildWeek(){
   const key=JSON.stringify([state.profile,state.adjust,state.log.length,state.log[state.log.length-1]]);
   if(weekCache&&weekCache.key===key)return weekCache.val;
-  const p=state.profile;const r=calc();
+  const p=state.profile;const r=calc();const cfg=mealCfg(p);
   const valid=s=>MEALS.filter(m=>m.slot===s).map(m=>resolveMeal(m,p)).filter(Boolean);
-  const B=valid("B"),M=valid("M"),S=valid("S");
-  const slots=p.meals===3?[["B",.3],["L",.35],["D",.35]]:p.meals===5?[["B",.22],["S",.12],["L",.27],["S",.12],["D",.27]]:[["B",.25],["L",.3],["D",.3],["S",.15]];
-  const tgt={p:r.P,c:r.C,f:r.F};const week=[];
+  const shake=shakeMeal(p,cfg);
+  const B=valid("B"),M=valid("M"),K=valid("K"),S=valid("S").filter(x=>!(shake&&x.m.id==="shake"));
+  // Reihenfolge: Frühstück, (Snack), Mittag, (Shake), (Snack), (Abend); Snacks bekommen je 12 % der Makros
+  const SN=0.12,scale=1-SN*cfg.snacks;
+  const slots=[["B",(cfg.main===2?.4:.3)*scale]];
+  if(cfg.snacks>=2)slots.push(["S",SN]);
+  slots.push(["L",(cfg.main===2?.6:.35)*scale]);
+  if(shake)slots.push(["SHAKE",0]);
+  if(cfg.snacks>=1)slots.push(["S",SN]);
+  if(cfg.main===3)slots.push(["D",.35*scale]);
+  const tgt={p:r.P,c:r.C,f:r.F};
+  const sm=shake?macrosOf(shake.items):{p:0,c:0,f:0};
+  const rest={p:Math.max(0,tgt.p-sm.p),c:Math.max(0,tgt.c-sm.c),f:Math.max(0,tgt.f-sm.f)};
+  const sched=cookSchedule(p,cfg,M.length);const dishOf=k=>M.length?M[k%M.length]:null;
+  const week=[];
   for(let d=0;d<7;d++){
     let sIdx=0;const meals=[];
-    const li=p.prep?(d<4?0:1):d, di=p.prep?(d<4?2:3):(d+3);
     for(const [s,frac] of slots){
-      let pick;
+      if(s==="SHAKE"){meals.push({...shake,items:shake.items.map(i=>({...i}))});continue}
+      let pick=null,from=null;
       if(s==="B")pick=B[d%B.length];
-      else if(s==="L")pick=M[li%M.length];
-      else if(s==="D"){pick=M[di%M.length];if(M.length>1&&pick.m.id===M[li%M.length].m.id)pick=M[(di+1)%M.length]}
-      else {pick=S[(d+sIdx*2)%S.length];sIdx++}
+      else if(s==="L"){const src=sched.lunch[d];pick=dishOf(src.k);from=src.from}
+      else if(s==="D"){const src=sched.dinner[d];
+        if(src.cold){const pool=K.length?K:B;pick=pool[d%pool.length]}
+        else{pick=dishOf(src.k);from=src.from;const l=dishOf(sched.lunch[d].k);
+          if(src.fresh&&pick&&l&&M.length>1&&pick.m.id===l.m.id)pick=dishOf(src.k+1)}}
+      else if(S.length){pick=S[(d+sIdx*2)%S.length];sIdx++}
       if(!pick)continue;
       const items=pick.items.map(i=>({...i}));
-      solve(items,{p:tgt.p*frac,c:tgt.c*frac,f:tgt.f*frac},10);
-      meals.push({slot:s,m:pick.m,items});
+      solve(items,{p:rest.p*frac,c:rest.c*frac,f:rest.f*frac},10);
+      meals.push({slot:s,m:pick.m,items,from});
     }
     const all=meals.flatMap(x=>x.items);
     for(let n=0;n<8;n++)for(const R of ["P","C","F"]){const k=KEY[R];const gap=tgt[k]-tot(all,k);
@@ -119,7 +160,13 @@ function buildWeek(){
     for(const ml of meals)ml.items=ml.items.filter(i=>i.g>0);
     week.push(meals);
   }
-  weekCache={key,val:{week,r}};
+  // Kochplan: pro Kochtag das Gericht mit allen Mahlzeiten, für die es reicht
+  const cooks=Array.from({length:7},()=>[]);
+  week.forEach((meals,d)=>meals.forEach(ml=>{if(ml.from===null||ml.from===undefined)return;
+    let c=cooks[ml.from].find(x=>x.m.id===ml.m.id);if(!c){c={m:ml.m,from:ml.from,uses:[],sum:{}};cooks[ml.from].push(c)}
+    c.uses.push({d,slot:ml.slot});for(const i of ml.items)c.sum[i.fid]=(c.sum[i.fid]||0)+i.g}));
+  for(const list of cooks)for(const c of list)c.uses.sort((a,b)=>((a.d-c.from+7)%7)-((b.d-c.from+7)%7)||(a.slot==="L"?-1:1));
+  weekCache={key,val:{week,r,cooks,cfg}};
   return weekCache.val;
 }
 function macrosOf(items){return {k:tot(items,"k"),p:tot(items,"p"),c:tot(items,"c"),f:tot(items,"f")}}
@@ -265,7 +312,7 @@ function renderResults(q){
 }
 
 function vProfil(){
-  if(!draft){draft=state.example?{sex:"m",age:"",height:"",weight:"",bf:"",steps:"s2",days:4,dur:60,goal:"moderat",region:"de",excl:[],meals:4,prep:true}:JSON.parse(JSON.stringify(state.profile))}
+  if(!draft){draft=state.example?{sex:"m",age:"",height:"",weight:"",bf:"",steps:"s2",days:4,dur:60,goal:"moderat",region:"de",excl:[],main:3,snacks:0,shake:30,shakeMilk:false,prep:true,weekend:"LD"}:JSON.parse(JSON.stringify(state.profile))}
   const d=draft;const steps=`<div class="steps" aria-hidden="true">${[0,1,2,3].map(i=>`<b class="${i<=wiz?"on":""}"></b>`).join("")}</div>`;
   const radio=(name,val,label,sub,cur)=>`<label class="choice"><input type="radio" name="${name}" id="${name}-${val}" value="${val}" ${String(cur)===String(val)?"checked":""}><span>${label}${sub?`<small>${sub}</small>`:""}</span></label>`;
   let body="";
@@ -287,8 +334,12 @@ function vProfil(){
   if(wiz===3)body=`<h2>Ernährung &amp; Einkauf</h2>
    <div class="field"><span class="lab">Wo kaufst du ein?</span><div class="choices">${radio("region","de","Deutschland","Rewe, Aldi, Lidl",d.region)}${radio("region","cn","China","Hema 盒马, Ole', Taobao",d.region)}</div><span class="hint">In China zeigt die Einkaufsliste die chinesischen Namen mit an.</span></div>
    <div class="field"><span class="lab">Was soll nicht vorkommen?</span><div class="choices">${EXCL.map(e=>`<label class="choice"><input type="checkbox" name="excl" id="excl-${e[0]}" value="${e[0]}" ${d.excl.includes(e[0])?"checked":""}><span>${e[1]}</span></label>`).join("")}</div></div>
-   <div class="field"><span class="lab">Mahlzeiten pro Tag</span><div class="choices">${[3,4,5].map(n=>radio("meals",n,n+" Mahlzeiten","",d.meals)).join("")}</div></div>
-   <div class="field"><span class="lab">Meal-Prep</span><div class="choices">${radio("prep","true","Ja","Mittagessen vorkochen, 2× pro Woche",d.prep)}${radio("prep","false","Nein","jeden Tag frisch",d.prep)}</div></div>`;
+   <div class="field"><span class="lab">Hauptmahlzeiten</span><div class="choices">${radio("main",2,"2 Mahlzeiten","Frühstück + Mittagessen",d.main)}${radio("main",3,"3 Mahlzeiten","Frühstück, Mittag- und Abendessen",d.main)}</div></div>
+   <div class="field"><span class="lab">Proteinshake täglich (als Snack)</span><div class="choices">${[[0,"Kein Shake"],[25,"25 g"],[30,"30 g"],[40,"40 g"]].map(x=>radio("shake",x[0],x[1],x[0]?"Whey bzw. Sojaprotein":"",d.shake)).join("")}</div>
+     <div class="choices">${radio("shakeMilk","false","Mit Wasser","",d.shakeMilk)}${radio("shakeMilk","true","Mit Milch","250 ml",d.shakeMilk)}</div></div>
+   <div class="field"><span class="lab">Weitere Snacks</span><div class="choices">${[[0,"Keine"],[1,"1 Snack"],[2,"2 Snacks"]].map(x=>radio("snacks",x[0],x[1],"",d.snacks)).join("")}</div></div>
+   <div class="field"><span class="lab">Meal-Prep unter der Woche</span><div class="choices">${radio("prep","true","Ja","Mo–Do abends kochen: Abendessen + Mittag am Folgetag",d.prep)}${radio("prep","false","Nein","jeden Tag frisch",d.prep)}</div></div>
+   <div class="field"><span class="lab">Am Wochenende einmal pro Tag kochen</span><div class="choices">${radio("weekend","LD","Mittag + Abend","ein Gericht für beide Mahlzeiten",d.weekend)}${radio("weekend","L","Nur Mittagessen","abends etwas Kaltes",d.weekend)}</div><span class="hint">Am Sonntag wird das Mittagessen für Montag mitgekocht. Gilt mit Meal-Prep.</span></div>`;
   return `<div class="view">${exampleBanner()}
    <div><h1>Fragebogen</h1><p class="lede">Vier kurze Schritte. Du kannst sie jederzeit erneut durchgehen, dein Gewichtsverlauf und Tagebuch bleiben erhalten.</p></div>
    <form class="card" id="wizform" novalidate>${steps}${body}<p class="note warn" id="wizerr" hidden></p>
@@ -301,7 +352,7 @@ function readWiz(){
   if(wiz===0){draft.sex=val("sex")||draft.sex;for(const k of ["age","height","weight","bf"]){const v=f.querySelector("#"+k).value.replace(",",".");draft[k]=v===""?"":Number(v)}}
   if(wiz===1){draft.steps=val("steps");draft.days=Number(val("days"));draft.dur=Number(val("dur"))}
   if(wiz===2){draft.goal=val("goal")}
-  if(wiz===3){draft.region=val("region");draft.excl=[...f.querySelectorAll("[name=excl]:checked")].map(x=>x.value);draft.meals=Number(val("meals"));draft.prep=val("prep")==="true"}
+  if(wiz===3){draft.region=val("region");draft.excl=[...f.querySelectorAll("[name=excl]:checked")].map(x=>x.value);draft.main=Number(val("main"));draft.shake=Number(val("shake"));draft.shakeMilk=val("shakeMilk")==="true";draft.snacks=Number(val("snacks"));draft.prep=val("prep")==="true";draft.weekend=val("weekend")}
 }
 function wizError(){
   if(wiz===0){const d=draft;if(!(d.age>=15&&d.age<=90))return "Bitte ein Alter zwischen 15 und 90 eingeben.";if(!(d.height>=130&&d.height<=220))return "Bitte die Größe in cm eingeben (130–220).";if(!(d.weight>=40&&d.weight<=250))return "Bitte das Gewicht in kg eingeben.";if(d.bf!==""&&d.bf!==null&&!(d.bf>=4&&d.bf<=60))return "Körperfett bitte zwischen 4 und 60 % oder leer lassen."}
@@ -347,16 +398,21 @@ function vBedarf(){
 }
 
 function vPlan(){
-  const {week,r}=buildWeek();const day=week[planDay];const all=day.flatMap(m=>m.items);const t=macrosOf(all);
+  const {week,r,cooks,cfg}=buildWeek();const day=week[planDay];const all=day.flatMap(m=>m.items);const t=macrosOf(all);
   const dev=(a,b)=>{const d=Math.round(a-b);return (d>0?"+":"")+d};
   return `<div class="view">${exampleBanner()}
-  <div><h1>Ernährungsplan</h1><p class="lede">${state.profile.meals} Mahlzeiten, Mengen auf deine Makros skaliert. Gewichte beziehen sich auf rohe Zutaten.</p></div>
+  <div><h1>Ernährungsplan</h1><p class="lede">${cfg.main} Hauptmahlzeiten${cfg.shake?" + Proteinshake":""}${cfg.snacks?` + ${cfg.snacks} Snack${cfg.snacks>1?"s":""}`:""}${state.profile.prep?", unter der Woche vorgekocht":""}. Mengen auf deine Makros skaliert, Gewichte für rohe Zutaten.</p></div>
   <div class="days" role="group" aria-label="Wochentag">${DAYS.map((d,i)=>`<button data-day="${i}" aria-pressed="${i===planDay}">${d}</button>`).join("")}</div>
   <section class="card">
     <div class="meal-head"><h2>${DAYLONG[planDay]}</h2><span class="mono" style="font-size:13px">${nf(t.k)} / ${nf(r.target)} kcal</span></div>
     <div class="mm"><span class="p"><b>P ${Math.round(t.p)} g</b> (${dev(t.p,r.P)})</span><span class="c"><b>KH ${Math.round(t.c)} g</b> (${dev(t.c,r.C)})</span><span class="f"><b>F ${Math.round(t.f)} g</b> (${dev(t.f,r.F)})</span></div>
-    ${day.map(ml=>{const mm=macrosOf(ml.items);return `<div class="meal">
-      <div class="meal-head"><div><div class="slot">${SLOTNAME[ml.slot]}</div><h3>${esc(ml.m.n)}</h3></div><span class="mono" style="font-size:12.5px;color:var(--muted)">${nf(mm.k)} kcal</span></div>
+    ${cooks[planDay].map(c=>`<div class="cook">
+      <div class="meal-head"><div><div class="slot">${state.profile.prep&&planDay<=4?"Heute Abend kochen":"Heute kochen"}</div><h3>${esc(c.m.n)}</h3></div><span class="pill neutral">${c.uses.length} ${c.uses.length>1?"Portionen":"Portion"}</span></div>
+      <p class="hint">Für ${c.uses.map(u=>SLOTNAME[u.slot]+" "+(u.d===planDay?"heute":DAYLONG[u.d])).join(" und ")}${c.uses.length>1?" – nach dem Kochen aufteilen.":"."}</p>
+      <ul>${Object.entries(c.sum).map(([fid,g])=>`<li><span>${esc(foodName(fid))}</span><span>${amount(fid,g)}</span></li>`).join("")}</ul>
+    </div>`).join("")}
+    ${day.map(ml=>{const mm=macrosOf(ml.items);const pre=ml.from!==null&&ml.from!==undefined&&ml.from!==planDay?`vorgekocht am ${DAYLONG[ml.from]}`:ml.slot==="D"&&ml.from===planDay&&day.some(x=>x.slot==="L"&&x.m.id===ml.m.id)?"vom Mittag":"";return `<div class="meal">
+      <div class="meal-head"><div><div class="slot">${SLOTNAME[ml.slot]}${pre?` · <span class="pre">${pre}</span>`:""}</div><h3>${esc(ml.m.n)}</h3></div><span class="mono" style="font-size:12.5px;color:var(--muted)">${nf(mm.k)} kcal</span></div>
       <ul>${ml.items.map(i=>`<li><span>${esc(foodName(i.fid))}</span><span>${amount(i.fid,i.g)}</span></li>`).join("")}</ul>
       <div class="mm"><span class="p">P ${Math.round(mm.p)}</span><span class="c">KH ${Math.round(mm.c)}</span><span class="f">F ${Math.round(mm.f)}</span>${ml.m.prep?`<span>· ${esc(ml.m.prep)}</span>`:""}</div>
     </div>`}).join("")}
