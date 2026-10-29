@@ -1,13 +1,20 @@
 // Service Worker: speichert die App beim ersten Aufruf, danach läuft sie offline.
 // Bei jeder Änderung an den Dateien CACHE-Version erhöhen.
-const CACHE = "ernaehrung-v1.0.0";
+const CACHE = "makrocoach-v2.0.0";
 const FILES = [
   "./",
   "index.html",
   "style.css",
   "app.js",
-  "foods.js",
+  "data.js",
   "manifest.webmanifest",
+  "fonts/fonts.css",
+  "fonts/BarlowCondensed-500.woff2",
+  "fonts/BarlowCondensed-600.woff2",
+  "fonts/BarlowCondensed-700.woff2",
+  "fonts/IBMPlexMono-400.woff2",
+  "fonts/IBMPlexMono-500.woff2",
+  "fonts/SchibstedGrotesk-400.woff2",
   "icons/icon-192.png",
   "icons/icon-512.png",
   "icons/apple-touch-icon.png",

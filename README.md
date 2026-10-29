@@ -1,15 +1,16 @@
-# Ernährungsberater
+# Makro-Coach
 
-Persönlicher Ernährungsberater als Offline-Web-App (PWA), optimiert für das iPhone.
+Persönlicher Makro-Coach mit Ernährungstagebuch als Offline-Web-App (PWA), optimiert für das iPhone.
 
 ## Funktionen
 
-- **Profil:** BMI, Grundumsatz, Gesamtumsatz (Mifflin-St-Jeor), Kalorienziel, Eiweiß, Kohlenhydrate, Fett, Ballaststoffe und Wasserbedarf
-- **Ernährungstagebuch:** ca. 90 Lebensmittel mit Nährwerten, eigene Lebensmittel anlegen, Mahlzeiten pro Tag
-- **Wasser-Tracker** und **Gewichtsverlauf** mit Diagramm
-- **Beratung:** tägliche Auswertung mit konkreten Tipps und Mahlzeitenideen (Mischkost, vegetarisch, vegan)
-- **Offline:** nach dem ersten Öffnen läuft alles ohne Internet
-- **Datenschutz:** alle Daten bleiben auf dem Gerät; Backup per Export/Import (JSON)
+- **Fragebogen:** Körperdaten, Schritte, Krafttraining, Abnehmtempo, Einkaufsregion (Deutschland/China), Ausschlüsse, Mahlzeiten pro Tag, Meal-Prep
+- **Bedarf:** Grundumsatz als Mittelwert aus Mifflin-St Jeor, Harris-Benedict und (mit Körperfett) Katch-McArdle, PAL aus Schritten und Training, Kaloriendefizit mit Schutzgrenzen, Protein 2 g/kg, Fett, Kohlenhydrate, Ballaststoffe, Wasser
+- **Ernährungsplan:** 7-Tage-Plan, Mengen automatisch auf deine Makros skaliert, mit Zubereitungshinweisen
+- **Einkaufsliste:** Wochenbedarf auf Packungsgrößen gerundet, abhakbar, teilbar
+- **Heute (Tagebuch):** Plan-Mahlzeiten mit einem Tipp als gegessen eintragen, ca. 120 Lebensmittel durchsuchen, eigene Lebensmittel anlegen, Wasser-Tracker, tägliche Auswertung mit Tipps
+- **Gewicht & Check-in:** Wochendurchschnitte, Verlaufsdiagramm, automatische Kalorien-Empfehlung bei zu schnellem/zu langsamem Fortschritt
+- **Offline & privat:** nach dem ersten Öffnen läuft alles ohne Internet, alle Daten bleiben auf dem Gerät; Backup als JSON (auch Backups aus dem Makro-Coach-Artefakt lassen sich einspielen), Gewicht als CSV
 
 ## Veröffentlichen (GitHub Pages)
 
