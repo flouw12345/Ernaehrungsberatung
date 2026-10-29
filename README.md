@@ -10,7 +10,9 @@ Persönlicher Makro-Coach mit Ernährungstagebuch als Offline-Web-App (PWA), opt
 - **Einkaufsliste:** Wochenbedarf auf Packungsgrößen gerundet, abhakbar, teilbar
 - **Heute (Tagebuch):** Plan-Mahlzeiten mit einem Tipp als gegessen eintragen, ca. 120 Lebensmittel durchsuchen, eigene Lebensmittel anlegen, Wasser-Tracker, tägliche Auswertung mit Tipps
 - **Gewicht & Check-in:** Wochendurchschnitte, Verlaufsdiagramm, automatische Kalorien-Empfehlung bei zu schnellem/zu langsamem Fortschritt
-- **Offline & privat:** nach dem ersten Öffnen läuft alles ohne Internet, alle Daten bleiben auf dem Gerät; Backup als JSON (auch Backups aus dem Makro-Coach-Artefakt lassen sich einspielen), Gewicht als CSV
+- **Einkaufsliste exportieren:** per Teilen/Kopieren nach Google Keep, Todoist, Microsoft To Do oder Apple Erinnerungen
+- **iCloud-Abgleich:** Datei `makro-coach-sync.json` in iCloud Drive sichern und auf anderen Geräten laden; beim Laden wird zusammengeführt (neueste Änderung pro Tag/Messung gewinnt). Auch Backups aus dem Makro-Coach-Artefakt lassen sich laden
+- **Offline & privat:** nach dem ersten Öffnen läuft alles ohne Internet, alle Daten bleiben auf dem Gerät; Gewicht als CSV
 
 ## Veröffentlichen (GitHub Pages)
 

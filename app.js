@@ -1,5 +1,5 @@
 "use strict";
-const APP_VERSION="2.1.0";
+const APP_VERSION="2.2.0";
 
 /* ---------- Zustand & Speicherung (nur auf diesem Gerät) ---------- */
 const LS="makrocoach.v1";
@@ -15,6 +15,7 @@ function exampleState(){
 function normalize(s){
   s.days=s.days&&typeof s.days==="object"?s.days:{};
   s.custom=Array.isArray(s.custom)?s.custom:[];
+  s.logDel=s.logDel||{};
   s.shop=s.shop||{};s.shopOpts=Object.assign({open:true,qty:true,cats:false},s.shopOpts);s.weekFlags=s.weekFlags||{};s.adjustLog=s.adjustLog||[];s.adjust=s.adjust||0;
   return s;
 }
@@ -152,7 +153,8 @@ function analyse(){
 const GLASS_ML=250;
 const SLOTS=["B","L","D","S"];
 function peekDay(d){return state.days[d]||{entries:[],water:0}}
-function getDay(d){if(!state.days[d])state.days[d]={entries:[],water:0};return state.days[d]}
+// Nur für Änderungen aufrufen: der Zeitstempel entscheidet beim Zusammenführen, welche Version eines Tages gilt
+function getDay(d){if(!state.days[d])state.days[d]={entries:[],water:0};state.days[d].u=Date.now();return state.days[d]}
 function dayTotals(entries){
   const t={k:0,p:0,c:0,f:0,fi:0,og:0};
   for(const e of entries){const m=e.g/100;t.k+=e.k*m;t.p+=e.p*m;t.c+=e.c*m;t.f+=e.f*m;t.fi+=(e.fi||0)*m;if(e.og)t.og+=e.g}
@@ -483,10 +485,17 @@ function vTracking(){
     ${recent.map(e=>`<tr><td>${fmtDate(e.d,true)}</td><td class="r">${nf(e.kg,1)} kg</td><td class="r"><button class="x" data-del="${e.d}" aria-label="Messung vom ${fmtDate(e.d)} löschen">Löschen</button></td></tr>`).join("")}
   </tbody></table></div></section>`:""}
   <section class="card">
-    <h2>Daten sichern</h2>
-    <p class="hint">Alle Daten liegen nur auf diesem Gerät. Ein Backup aus dem Makro-Coach-Artefakt kannst du hier ebenfalls einspielen.</p>
-    <div class="row"><button data-act="export-json">Backup (JSON)</button><button data-act="export-csv">Gewicht als CSV</button>
-      <label class="btn" for="importfile">Backup einspielen</label><input type="file" id="importfile" accept=".json,application/json" hidden></div>
+    <div class="meal-head"><h2>iCloud-Abgleich</h2><span class="pill ${state.lastSync&&Date.now()-state.lastSync<7*86400000?"good":"warn"}">Zuletzt: ${ago(state.lastSync)}</span></div>
+    <p class="hint">Die App speichert auf diesem Gerät. Über die Datei <b>${SYNC_FILE}</b> in iCloud Drive gleichst du iPhone, iPad und Mac ab und hast gleichzeitig ein Backup.</p>
+    <div class="row"><button class="primary" data-act="export-json" style="flex:1">In iCloud sichern</button>
+      <label class="btn" for="importfile" style="flex:1">Aus iCloud laden</label><input type="file" id="importfile" accept=".json,application/json" hidden></div>
+    <details class="custom"><summary>So funktioniert's</summary><ol class="advice" style="margin-top:8px">
+      <li><b>Sichern:</b> „In iCloud sichern“ → <i>In Dateien sichern</i> → <i>iCloud Drive</i> → Sichern. Beim nächsten Mal „Ersetzen“ wählen.</li>
+      <li><b>Auf dem anderen Gerät:</b> „Aus iCloud laden“ → <i>Durchsuchen</i> → iCloud Drive → ${SYNC_FILE}.</li>
+      <li>Beim Laden wird <b>zusammengeführt</b>, nichts überschrieben: Pro Tag, Messung und Lebensmittel gilt die neueste Änderung. Danach dort wieder sichern.</li>
+      <li>Auch Backups aus dem Makro-Coach-Artefakt lassen sich so laden.</li>
+    </ol></details>
+    <div><button data-act="export-csv" class="ghost">Gewicht als CSV exportieren</button></div>
     ${exportText?`<div class="field"><label for="exportbox">Export-Text zum Kopieren</label><textarea id="exportbox" readonly>${esc(exportText)}</textarea><button data-act="copyexport">Kopieren</button></div>`:""}
     ${confirmReset?`<div class="confirm"><p><b>Wirklich alles löschen?</b> Profil, Messungen, Tagebuch und Anpassungen werden entfernt.</p><div class="row"><button class="danger" data-act="reset-yes">Ja, alles löschen</button><button class="ghost" data-act="reset-no">Abbrechen</button></div></div>`:`<div><button class="danger" data-act="reset">Alle Daten löschen</button></div>`}
   </section>
@@ -507,6 +516,28 @@ function render(){
 }
 function route(){const h=location.hash.replace("#","");const nv=VIEWS[h]?h:"heute";if(nv!==view){exportText="";confirmReset=false}view=nv;if(view!=="profil"){draft=null}render();window.scrollTo(0,0)}
 window.addEventListener("hashchange",route);
+
+/* ---------- Abgleich über eine Datei in iCloud Drive ---------- */
+const SYNC_FILE="makro-coach-sync.json";
+// Führt zwei Stände zusammen: pro Tag, pro Messung und pro eigenem Lebensmittel gewinnt die neuere Änderung,
+// Einstellungen kommen aus dem zuletzt geänderten Stand.
+function mergeStates(a,b){
+  const [older,newer]=(b.updatedAt||0)>(a.updatedAt||0)?[a,b]:[b,a];
+  const out={...newer,example:false};
+  // Tage: neuere Änderung gewinnt; ohne Zeitstempel (alte Backups) der Tag mit mehr Einträgen
+  out.days={...older.days};
+  for(const d in newer.days){const x=out.days[d],y=newer.days[d];
+    if(!x||(y.u||0)>(x.u||0)||((y.u||0)===(x.u||0)&&y.entries.length>=x.entries.length))out.days[d]=y}
+  // Messungen: neuere gewinnt, Löschungen bleiben gelöscht
+  out.logDel={...older.logDel};for(const d in newer.logDel)out.logDel[d]=Math.max(out.logDel[d]||0,newer.logDel[d]);
+  const log={};for(const e of [...older.log,...newer.log]){const cur=log[e.d];if(!cur||(e.t||0)>=(cur.t||0))log[e.d]=e}
+  out.log=Object.values(log).filter(e=>!(out.logDel[e.d]>(e.t||0))).sort((x,y)=>x.d<y.d?-1:1);
+  const custom={};for(const f of [...older.custom,...newer.custom])custom[f.id]=f;
+  out.custom=Object.values(custom);
+  out.weekFlags={...older.weekFlags,...newer.weekFlags};
+  return normalize(out);
+}
+function ago(ts){if(!ts)return "noch nie";const d=Math.floor((Date.now()-ts)/86400000);return d<=0?"heute":d===1?"gestern":`vor ${d} Tagen`}
 
 async function saveFile(name,data,type){
   const file=new File([data],name,{type});
@@ -530,7 +561,7 @@ document.addEventListener("click",e=>{
   const ent=e.target.closest("[data-entry]");
   if(ent){const [rm]=getDay(diaryDay).entries.splice(Number(ent.dataset.entry),1);save();render();toast(`${rm.n} entfernt`);return}
   const dayB=e.target.closest("[data-day]");if(dayB){planDay=Number(dayB.dataset.day);render();return}
-  const del=e.target.closest("[data-del]");if(del){state.log=state.log.filter(x=>x.d!==del.dataset.del);save();render();toast("Messung gelöscht");return}
+  const del=e.target.closest("[data-del]");if(del){state.log=state.log.filter(x=>x.d!==del.dataset.del);state.logDel[del.dataset.del]=Date.now();save();render();toast("Messung gelöscht");return}
   const b=e.target.closest("[data-act]");if(!b)return;const act=b.dataset.act;
   if(act==="startwiz"||act==="editprofile"){wiz=0;draft=null;if(view==="profil")render();else location.hash="profil"}
   if(act==="wizback"){readWiz();wiz=Math.max(0,wiz-1);render()}
@@ -547,7 +578,7 @@ document.addEventListener("click",e=>{
   if(act==="resetshop"){state.shop={};save();render()}
   if(act==="shareshop"){exportShop("share")}
   if(act==="copyshop"){exportShop("copy")}
-  if(act==="export-json"){saveFile("makro-coach-backup-"+iso(new Date())+".json",JSON.stringify(state,null,1),"application/json")}
+  if(act==="export-json"){state.lastSync=Date.now();save();saveFile(SYNC_FILE,JSON.stringify(state),"application/json").then(()=>render())}
   if(act==="export-csv"){const rows=["datum;gewicht_kg",...[...state.log].sort((a,b)=>a.d<b.d?-1:1).map(e=>e.d+";"+String(e.kg).replace(".",","))];saveFile("gewicht-"+iso(new Date())+".csv",rows.join("\n"),"text/csv")}
   if(act==="copyexport"){const t=document.getElementById("exportbox");share(exportText);if(t){t.select()}}
   if(act==="reset"){confirmReset=true;render()}
@@ -564,21 +595,23 @@ document.addEventListener("change",e=>{
   if(e.target.id==="addslot"){addSlot=e.target.value}
   if(e.target.id==="diaryday"&&e.target.value){diaryDay=e.target.value;selFood=null;render()}
   if(e.target.id==="weak"){const wk=mondayOf(iso(new Date()));state.weekFlags=state.weekFlags||{};if(e.target.checked)state.weekFlags[wk]=true;else delete state.weekFlags[wk];save();render()}
-  if(e.target.id==="importfile"){const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const s=JSON.parse(rd.result);if(!s.profile||!Array.isArray(s.log))throw 0;state=normalize(s);state.example=false;save();render();toast("Backup eingespielt")}catch(err){toast("Datei ist kein gültiges Makro-Coach-Backup")}};rd.readAsText(f);e.target.value=""}
+  if(e.target.id==="importfile"){const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{let s;try{s=JSON.parse(rd.result);if(!s.profile||!Array.isArray(s.log))throw 0}catch(err){toast("Datei ist kein gültiges Makro-Coach-Backup");return}
+    s=normalize(s);if(state.example){state=s;state.example=false}else state=mergeStates(state,s);
+    state.lastSync=Date.now();save();render();toast("Daten zusammengeführt")};rd.readAsText(f);e.target.value=""}
 });
 document.addEventListener("submit",e=>{
   e.preventDefault();
   if(e.target.id==="wizform"){readWiz();const err=wizError();const el=document.getElementById("wizerr");if(err){el.textContent=err;el.hidden=false;return}
     if(wiz<3){wiz++;render();window.scrollTo(0,0);return}
     const prof={...draft,bf:draft.bf===""?null:draft.bf};
-    if(state.example){state={v:2,example:false,updatedAt:0,adjust:0,adjustLog:[],shop:{},weekFlags:{},days:state.days||{},custom:state.custom||[],profile:prof,log:[{d:iso(new Date()),kg:prof.weight}]}}
+    if(state.example){state={v:2,example:false,updatedAt:0,adjust:0,adjustLog:[],shop:{},weekFlags:{},days:state.days||{},custom:state.custom||[],profile:prof,log:[{d:iso(new Date()),kg:prof.weight,t:Date.now()}],logDel:{}}}
     else state.profile=prof;
     save();wiz=0;draft=null;location.hash="bedarf";toast("Plan erstellt");if(view==="bedarf")render();
   }
   if(e.target.id==="logform"){const d=document.getElementById("logdate").value;const kg=Number(document.getElementById("logkg").value.replace(",","."));const el=document.getElementById("logerr");
     if(!d||!(kg>=30&&kg<=300)){el.textContent="Bitte ein Datum und ein Gewicht zwischen 30 und 300 kg eingeben.";el.hidden=false;return}
     if(state.example){toast("Erst den Fragebogen ausfüllen");location.hash="profil";return}
-    state.log=state.log.filter(x=>x.d!==d);state.log.push({d,kg:Math.round(kg*10)/10});save();render();toast("Messung gespeichert")}
+    state.log=state.log.filter(x=>x.d!==d);state.log.push({d,kg:Math.round(kg*10)/10,t:Date.now()});delete state.logDel[d];save();render();toast("Messung gespeichert")}
   if(e.target.id==="customform"){const v=id=>document.getElementById(id).value.trim().replace(",",".");const n=v("cn");
     const num=id=>{const s=v(id);const x=Number(s);return s!==""&&x>=0?x:NaN};const k=num("ck"),p=num("cp"),c=num("cc"),f=num("cf");
     if(!n||[k,p,c,f].some(Number.isNaN)){toast("Bitte Name und alle Nährwerte ausfüllen");return}
