@@ -1,5 +1,5 @@
 "use strict";
-const APP_VERSION="2.0.0";
+const APP_VERSION="2.1.0";
 
 /* ---------- Zustand & Speicherung (nur auf diesem Gerät) ---------- */
 const LS="makrocoach.v1";
@@ -15,7 +15,7 @@ function exampleState(){
 function normalize(s){
   s.days=s.days&&typeof s.days==="object"?s.days:{};
   s.custom=Array.isArray(s.custom)?s.custom:[];
-  s.shop=s.shop||{};s.weekFlags=s.weekFlags||{};s.adjustLog=s.adjustLog||[];s.adjust=s.adjust||0;
+  s.shop=s.shop||{};s.shopOpts=Object.assign({open:true,qty:true,cats:false},s.shopOpts);s.weekFlags=s.weekFlags||{};s.adjustLog=s.adjustLog||[];s.adjust=s.adjust||0;
   return s;
 }
 function lsGet(){try{const s=localStorage.getItem(LS);return s?JSON.parse(s):null}catch(e){return null}}
@@ -373,27 +373,57 @@ function shopping(){
 }
 function vEinkauf(){
   const groups=shopping();const cn=state.profile.region==="cn";const checked=state.shop||{};
-  const qty=it=>{const f=FOODS[it.fid];if(f.unit)return `${it.packs} ${f.unit.l}<small>${nf(it.g)} g</small>`;
+  const qty=it=>{const f=FOODS[it.fid];if(f.unit&&f.unit.g===f.pack.g)return `${it.packs} ${f.unit.l}<small>${nf(it.g)} g</small>`;
     if(f.long)return `${nf(it.g)} g<small>Vorrat: ${f.pack.l}</small>`;
     return `${it.packs} × ${f.pack.l}<small>${nf(it.g)} g benötigt</small>`};
   const order=["prot","dairy","carb","veg","misc"];
   const n=Object.values(groups).flat().length,done=Object.values(groups).flat().filter(i=>checked[i.fid]).length;
   return `<div class="view">${exampleBanner()}
   <div><h1>Einkaufsliste</h1><p class="lede">Alles für 7 Tage nach deinem aktuellen Plan, auf übliche Packungsgrößen aufgerundet.</p></div>
-  <div class="row" style="justify-content:space-between"><span class="pill ${done===n?"good":"neutral"}">${done} von ${n} erledigt</span><div class="row"><button data-act="copyshop" class="ghost">Teilen / Kopieren</button><button data-act="resetshop" class="ghost">Neue Woche</button></div></div>
+  <div class="row" style="justify-content:space-between"><span class="pill ${done===n?"good":"neutral"}">${done} von ${n} erledigt</span><button data-act="resetshop" class="ghost">Neue Woche</button></div>
+  ${vShopExport(n-done)}
   ${order.filter(c=>groups[c]).map(c=>`<section class="card"><span class="label">${CATS[c]}</span><ul class="shop">
     ${groups[c].sort((a,b)=>b.g-a.g).map(it=>`<li class="${checked[it.fid]?"done":""}"><input type="checkbox" id="shop-${it.fid}" data-shop="${it.fid}" ${checked[it.fid]?"checked":""} aria-label="${esc(FOODS[it.fid].n)}">
       <label class="nm" for="shop-${it.fid}">${esc(FOODS[it.fid].n)}${cn?`<small>${FOODS[it.fid].cn}</small>`:""}</label><span class="q">${qty(it)}</span></li>`).join("")}
   </ul></section>`).join("")}
   <p class="note">${cn?"Griechischen Joghurt, Lachs, Hähnchenbrust und TK-Gemüse gibt es meist bei Hema (盒马) und Ole'. Proteinpulver bekommst du am einfachsten über Tmall oder Taobao. Magerquark ist in China kaum erhältlich und deshalb ersetzt.":"Magerquark, Skyr, Hähnchen und TK-Gemüse sind beim Discounter meist am günstigsten. Lachs und Beeren lohnen sich als TK-Ware."}</p>
-  ${exportText?`<div class="field"><label for="exportbox">Text zum Kopieren</label><textarea id="exportbox" readonly>${esc(exportText)}</textarea></div>`:""}
   </div>`;
 }
-function shopText(){
-  const groups=shopping();const cn=state.profile.region==="cn";const lines=["Einkaufsliste Makro-Coach"];
-  for(const c of ["prot","dairy","carb","veg","misc"]){if(!groups[c])continue;lines.push("",CATS[c]+":");
-    for(const it of groups[c]){const f=FOODS[it.fid];const q=f.unit?`${it.packs} ${f.unit.l}`:f.long?`${nf(it.g)} g (Vorrat)`:`${it.packs} × ${f.pack.l}`;lines.push(`- ${f.n}${cn?" "+f.cn:""}: ${q}`)}}
-  return lines.join("\n");
+function vShopExport(open){
+  const o=state.shopOpts;
+  const opt=(k,label)=>`<label class="row" style="gap:8px;font-size:14px"><input type="checkbox" data-shopopt="${k}" ${o[k]?"checked":""} style="width:20px;height:20px;accent-color:var(--accent)"> ${label}</label>`;
+  return `<section class="card">
+    <h2>In Listen-App übertragen</h2>
+    <p class="hint">Ein Artikel pro Zeile – so wird daraus in Google Keep, Todoist, Microsoft To Do oder Apple Erinnerungen eine abhakbare Liste, die du mit Android- und iPhone-Nutzern teilen kannst.</p>
+    <div class="stack">${opt("open","Nur noch offene Artikel"+(o.open?` (${open})`:""))}${opt("qty","Mengen mitnehmen")}${opt("cats","Kategorien als Überschriften")}</div>
+    <div class="row"><button class="primary" data-act="shareshop" style="flex:1">Teilen …</button><button data-act="copyshop" style="flex:1">Kopieren</button></div>
+    ${exportText?`<div class="field"><label for="exportbox">Text zum Kopieren</label><textarea id="exportbox" readonly>${esc(exportText)}</textarea></div>`:""}
+    <details class="custom"><summary>So geht's in den Apps</summary>
+      <ol class="advice" style="margin-top:8px">
+        <li><b>Google Keep</b> (Android &amp; iPhone, gratis): „Teilen …“ → Keep wählen → in der Notiz über ⋮ bzw. „+“ <i>Kästchen anzeigen</i>. Über „Mitarbeiter“ teilst du die Liste mit anderen.</li>
+        <li><b>Todoist</b> (Android &amp; iPhone): „Kopieren“ → in einem Projekt neue Aufgabe → einfügen → „Als einzelne Aufgaben hinzufügen“. Projekt teilen, um gemeinsam abzuhaken.</li>
+        <li><b>Microsoft To Do</b>: „Kopieren“ → in einer Liste ins Feld „Aufgabe hinzufügen“ einfügen → mehrere Aufgaben erstellen. Liste über „Teilen“ freigeben.</li>
+        <li><b>Apple Erinnerungen</b> (nur iPhone): „Kopieren“ → in einer Liste neue Erinnerung → einfügen, jede Zeile wird eine eigene Erinnerung.</li>
+        <li><b>Bring!</b>: Ein Import ganzer Listen ist offiziell nicht vorgesehen. Probier „Kopieren“ und Einfügen ins Eingabefeld, sonst Artikel einzeln oder per Sprache hinzufügen.</li>
+      </ol>
+    </details>
+  </section>`;
+}
+function shopLines(){
+  const groups=shopping();const cn=state.profile.region==="cn";const o=state.shopOpts;const checked=state.shop||{};const lines=[];let count=0;
+  for(const c of ["prot","dairy","carb","veg","misc"]){
+    const its=(groups[c]||[]).filter(it=>!(o.open&&checked[it.fid])).sort((a,b)=>b.g-a.g);if(!its.length)continue;
+    if(o.cats)lines.push((lines.length?"\n":"")+CATS[c].toUpperCase());
+    for(const it of its){const f=FOODS[it.fid];const q=f.unit&&f.unit.g===f.pack.g?`${it.packs} ${f.unit.l}`:f.long?`${nf(it.g)} g, Vorrat ${f.pack.l}`:`${it.packs} × ${f.pack.l}`;
+      lines.push(`${f.n}${cn?" "+f.cn:""}${o.qty?` (${q})`:""}`);count++}
+  }
+  return {text:lines.join("\n"),count};
+}
+function shopTitle(){return "Einkauf ab "+fmtDate(mondayOf(iso(new Date())))}
+async function exportShop(how){
+  const {text,count}=shopLines();if(!count){toast("Alles erledigt – nichts zu exportieren");return}
+  if(how==="share"&&navigator.share){try{await navigator.share({title:shopTitle(),text});return}catch(e){if(e&&e.name==="AbortError")return}}
+  try{await navigator.clipboard.writeText(text);toast(`${count} Artikel kopiert`)}catch(e){exportText=text;render();toast("Bitte manuell kopieren")}
 }
 
 function chartSVG(){
@@ -515,7 +545,8 @@ document.addEventListener("click",e=>{
   if(act==="apply"){const d=Number(b.dataset.delta);state.adjust=(state.adjust||0)+d;state.adjustLog=[...(state.adjustLog||[]),{d:iso(new Date()),delta:d}];save();render();toast(`Ziel um ${d>0?"+":""}${d} kcal angepasst`)}
   if(act==="clearadj"){state.adjust=0;save();render();toast("Anpassungen zurückgesetzt")}
   if(act==="resetshop"){state.shop={};save();render()}
-  if(act==="copyshop"){share(shopText())}
+  if(act==="shareshop"){exportShop("share")}
+  if(act==="copyshop"){exportShop("copy")}
   if(act==="export-json"){saveFile("makro-coach-backup-"+iso(new Date())+".json",JSON.stringify(state,null,1),"application/json")}
   if(act==="export-csv"){const rows=["datum;gewicht_kg",...[...state.log].sort((a,b)=>a.d<b.d?-1:1).map(e=>e.d+";"+String(e.kg).replace(".",","))];saveFile("gewicht-"+iso(new Date())+".csv",rows.join("\n"),"text/csv")}
   if(act==="copyexport"){const t=document.getElementById("exportbox");share(exportText);if(t){t.select()}}
@@ -528,6 +559,7 @@ document.addEventListener("input",e=>{
   if(e.target.id==="addg"){addG=e.target.value;const p=document.getElementById("addpreview");if(p)p.innerHTML=previewText()}
 });
 document.addEventListener("change",e=>{
+  const so=e.target.closest("[data-shopopt]");if(so){state.shopOpts[so.dataset.shopopt]=so.checked;exportText="";save();render();return}
   const s=e.target.closest("[data-shop]");if(s){state.shop=state.shop||{};state.shop[s.dataset.shop]=s.checked;save();render();return}
   if(e.target.id==="addslot"){addSlot=e.target.value}
   if(e.target.id==="diaryday"&&e.target.value){diaryDay=e.target.value;selFood=null;render()}
