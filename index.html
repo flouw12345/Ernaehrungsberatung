@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ernährungsberater</title>
+  <meta name="description" content="Persönlicher Ernährungsberater – funktioniert komplett offline.">
+  <meta name="theme-color" content="#2f7d4f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Ernährung">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Ernährungsberater</h1>
+    <span id="offline-badge" class="badge" hidden>Offline</span>
+  </header>
+
+  <main>
+    <!-- Heute -->
+    <section id="view-heute" class="view active" aria-labelledby="t-heute">
+      <h2 id="t-heute" class="sr-only">Heute</h2>
+      <div class="date-nav">
+        <button class="icon-btn" id="prev-day" aria-label="Vorheriger Tag">‹</button>
+        <input type="date" id="day" aria-label="Datum">
+        <button class="icon-btn" id="next-day" aria-label="Nächster Tag">›</button>
+      </div>
+
+      <div id="no-profile" class="card notice" hidden>
+        <p>Lege zuerst dein <strong>Profil</strong> an, damit dein persönlicher Bedarf berechnet werden kann.</p>
+        <button class="btn" data-goto="profil">Profil anlegen</button>
+      </div>
+
+      <div class="card">
+        <div class="kcal-ring">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle cx="60" cy="60" r="52" class="ring-bg"/>
+            <circle cx="60" cy="60" r="52" class="ring-fg" id="ring"/>
+          </svg>
+          <div class="kcal-text">
+            <strong id="kcal-eaten">0</strong>
+            <span>von <span id="kcal-target">–</span> kcal</span>
+            <small id="kcal-left"></small>
+          </div>
+        </div>
+        <div class="macros" id="macros"></div>
+      </div>
+
+      <div class="card">
+        <div class="row-between">
+          <h3>Wasser</h3>
+          <span><strong id="water-amount">0</strong> / <span id="water-target">–</span> l</span>
+        </div>
+        <div class="bar"><div class="bar-fill water" id="water-bar"></div></div>
+        <div class="btn-row">
+          <button class="btn secondary" id="water-minus" aria-label="Ein Glas Wasser entfernen">− 250 ml</button>
+          <button class="btn" id="water-plus" aria-label="Ein Glas Wasser hinzufügen">+ 250 ml</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Lebensmittel hinzufügen</h3>
+        <label for="food-search" class="sr-only">Lebensmittel suchen</label>
+        <input type="search" id="food-search" placeholder="Suchen, z. B. Haferflocken" autocomplete="off">
+        <ul id="food-results" class="results" role="listbox"></ul>
+        <div id="add-form" class="add-form" hidden>
+          <p id="add-name" class="add-name"></p>
+          <div class="grid2">
+            <label>Menge (g/ml)
+              <input type="number" id="add-grams" inputmode="decimal" min="1" value="100">
+            </label>
+            <label>Mahlzeit
+              <select id="add-meal">
+                <option>Frühstück</option>
+                <option>Mittagessen</option>
+                <option>Abendessen</option>
+                <option>Snack</option>
+              </select>
+            </label>
+          </div>
+          <p id="add-preview" class="muted"></p>
+          <div class="btn-row">
+            <button class="btn secondary" id="add-cancel">Abbrechen</button>
+            <button class="btn" id="add-confirm">Hinzufügen</button>
+          </div>
+        </div>
+        <details class="custom">
+          <summary>Eigenes Lebensmittel anlegen</summary>
+          <form id="custom-form" class="grid2">
+            <label class="span2">Name <input required id="c-name"></label>
+            <label>kcal / 100 g <input required type="number" step="any" min="0" id="c-kcal" inputmode="decimal"></label>
+            <label>Eiweiß g <input required type="number" step="any" min="0" id="c-p" inputmode="decimal"></label>
+            <label>Kohlenhydrate g <input required type="number" step="any" min="0" id="c-c" inputmode="decimal"></label>
+            <label>Fett g <input required type="number" step="any" min="0" id="c-f" inputmode="decimal"></label>
+            <label>Ballaststoffe g <input type="number" step="any" min="0" id="c-fi" inputmode="decimal" value="0"></label>
+            <button class="btn span2" type="submit">Speichern</button>
+          </form>
+        </details>
+      </div>
+
+      <div id="meals"></div>
+    </section>
+
+    <!-- Profil -->
+    <section id="view-profil" class="view" aria-labelledby="t-profil">
+      <h2 id="t-profil">Profil</h2>
+      <form id="profile-form" class="card grid2">
+        <label>Geschlecht
+          <select id="p-sex" required>
+            <option value="w">weiblich</option>
+            <option value="m">männlich</option>
+          </select>
+        </label>
+        <label>Alter (Jahre) <input type="number" id="p-age" min="14" max="110" required inputmode="numeric"></label>
+        <label>Größe (cm) <input type="number" id="p-height" min="100" max="250" required inputmode="numeric"></label>
+        <label>Gewicht (kg) <input type="number" id="p-weight" min="30" max="350" step="0.1" required inputmode="decimal"></label>
+        <label class="span2">Aktivität
+          <select id="p-activity">
+            <option value="1.2">Kaum Bewegung (Bürojob, kein Sport)</option>
+            <option value="1.375">Leicht aktiv (1–3× Sport pro Woche)</option>
+            <option value="1.55" selected>Mäßig aktiv (3–5× Sport pro Woche)</option>
+            <option value="1.725">Sehr aktiv (6–7× Sport pro Woche)</option>
+            <option value="1.9">Extrem aktiv (körperliche Arbeit + Sport)</option>
+          </select>
+        </label>
+        <label class="span2">Ziel
+          <select id="p-goal">
+            <option value="-500">Abnehmen (ca. 0,5 kg / Woche)</option>
+            <option value="-250">Langsam abnehmen</option>
+            <option value="0" selected>Gewicht halten</option>
+            <option value="250">Muskelaufbau</option>
+          </select>
+        </label>
+        <label class="span2">Ernährungsweise
+          <select id="p-diet">
+            <option value="alles">Mischkost</option>
+            <option value="vegetarisch">Vegetarisch</option>
+            <option value="vegan">Vegan</option>
+          </select>
+        </label>
+        <button class="btn span2" type="submit">Speichern &amp; berechnen</button>
+      </form>
+
+      <div id="results" class="card" hidden>
+        <h3>Dein persönlicher Bedarf</h3>
+        <dl class="stats" id="stats"></dl>
+        <p class="muted small">Berechnung nach Mifflin-St-Jeor. Richtwerte – ersetzen keine ärztliche oder professionelle Ernährungsberatung.</p>
+      </div>
+
+      <div class="card">
+        <h3>Gewichtsverlauf</h3>
+        <form id="weight-form" class="inline-form">
+          <label class="sr-only" for="w-value">Gewicht in kg</label>
+          <input type="number" id="w-value" step="0.1" min="30" max="350" placeholder="kg" inputmode="decimal" required>
+          <button class="btn" type="submit">Eintragen</button>
+        </form>
+        <svg id="weight-chart" class="chart" viewBox="0 0 320 140" role="img" aria-label="Gewichtsverlauf"></svg>
+        <ul id="weight-list" class="plain-list"></ul>
+      </div>
+    </section>
+
+    <!-- Beratung -->
+    <section id="view-tipps" class="view" aria-labelledby="t-tipps">
+      <h2 id="t-tipps">Beratung</h2>
+      <div class="card">
+        <h3>Deine Auswertung für heute</h3>
+        <ul id="advice" class="advice"></ul>
+      </div>
+      <div class="card">
+        <h3>Mahlzeitenideen</h3>
+        <div id="ideas"></div>
+      </div>
+      <div class="card">
+        <h3>Grundregeln</h3>
+        <ul class="advice">
+          <li>Gemüse und Obst: mindestens 3 Portionen Gemüse und 2 Portionen Obst täglich.</li>
+          <li>Vollkorn bevorzugen – mindestens 30 g Ballaststoffe pro Tag.</li>
+          <li>Hülsenfrüchte, Nüsse und Samen regelmäßig einplanen.</li>
+          <li>Rund 1,5–2 Liter Wasser oder ungesüßten Tee trinken.</li>
+          <li>Zucker, Salz und stark verarbeitete Lebensmittel sparsam einsetzen.</li>
+          <li>Pflanzliche Öle (Raps-, Olivenöl) statt tierischer Fette.</li>
+          <li>Langsam essen, Pausen zwischen Mahlzeiten einhalten, auf Sättigung achten.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Daten -->
+    <section id="view-daten" class="view" aria-labelledby="t-daten">
+      <h2 id="t-daten">Daten</h2>
+      <div class="card">
+        <p>Alle Daten bleiben ausschließlich auf diesem Gerät gespeichert. Nichts wird ins Internet übertragen.</p>
+        <div class="btn-col">
+          <button class="btn" id="export">Daten exportieren (Backup)</button>
+          <label class="btn secondary file-btn">Backup importieren
+            <input type="file" id="import" accept="application/json,.json" hidden>
+          </label>
+          <button class="btn danger" id="reset">Alle Daten löschen</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Auf dem iPhone installieren</h3>
+        <ol class="advice">
+          <li>Diese Seite in <strong>Safari</strong> öffnen.</li>
+          <li>Unten auf <strong>Teilen</strong> tippen (Quadrat mit Pfeil).</li>
+          <li><strong>„Zum Home-Bildschirm“</strong> wählen und bestätigen.</li>
+          <li>Die App einmal mit Internet öffnen – danach läuft sie komplett offline.</li>
+        </ol>
+      </div>
+      <p class="muted small center">Version <span id="version"></span></p>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Hauptnavigation">
+    <button data-goto="heute" class="active"><span aria-hidden="true">🍽️</span>Heute</button>
+    <button data-goto="profil"><span aria-hidden="true">👤</span>Profil</button>
+    <button data-goto="tipps"><span aria-hidden="true">💡</span>Beratung</button>
+    <button data-goto="daten"><span aria-hidden="true">💾</span>Daten</button>
+  </nav>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="foods.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
